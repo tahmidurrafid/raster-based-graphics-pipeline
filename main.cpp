@@ -1,4 +1,5 @@
 #include<bits/stdc++.h>
+#include "bitmap_image.hpp"
 
 using namespace std;
 #define pi (2*acos(0.0))
@@ -6,6 +7,9 @@ using namespace std;
 enum TRANSFORM{T_translate, T_scale, T_rotate};
 
 class Transform;
+
+int n = 0;
+string folder = "";
 
 class Vector{
 public:
@@ -79,33 +83,6 @@ public:
         return x < a.x;
     }
 };
-
-
-class Triangle{
-public:
-	Vector p1, p2, p3;
-
-    void input(ifstream &inp){
-		p1.input(inp);
-		p2.input(inp);
-		p3.input(inp);
-	}
-
-	Triangle transform(Transform* t){
-		Triangle x = *this;
-		x.p1 = x.p1.transform(t);
-		x.p2 = x.p2.transform(t);
-		x.p3 = x.p3.transform(t);
-		return x;
-	}
-
-	void print(ofstream &stage){
-		p1.print(stage);
-		p2.print(stage);
-		p3.print(stage);
-	}
-};
-
 
 class Transform{
 public:
@@ -229,7 +206,10 @@ class Glu{
 public:
     Vector eye, look, up;
     double fovY, aspectRatio, near, far;
+	double width, height, minX, maxX, minY, maxY, minZ, maxZ, dx, dy;
 	Vector l, r, u;
+	vector<vector<double>> zBuf;
+	vector<vector< vector<int> >> color;
 
     void input(ifstream &inp){
         eye.input(inp);
@@ -237,6 +217,18 @@ public:
         up.input(inp);
         inp >> fovY >> aspectRatio >> near >> far;
     }
+
+	void inputConfig(ifstream &inp){
+		inp >> width >> height;
+		inp >> minX >> minY;
+		inp >> minZ >> maxZ;
+		maxX = -minX;
+		maxY = -minY;
+		zBuf = vector<vector<double>>(width, vector<double>(height, maxZ) );
+		color = vector<vector<vector<int>>>(width, vector<vector<int>>(height, vector<int>(3, 0) ) );
+		dx = (maxX - minX)/width;
+		dy = (maxY - minY)/height;
+	}
 
 	Transform getProjectionTransformation(){
 		double fovX = fovY * aspectRatio;
@@ -252,6 +244,30 @@ public:
 		return P;
 	}
 
+	void outputZBuffer(ofstream &out){
+		for(int i = 0; i < height; i++){
+			for(int j = 0; j < width; j++){
+				if( !(abs(zBuf[j][i] - maxZ) <= .0000001)  ){
+					out << zBuf[j][i];
+					out << "\t";					
+				}
+			}
+			out << "\n";
+		}
+	}
+
+	void toImage(){
+		bitmap_image image(width,height);
+		for(int i = height - 1; i >= 0; i--){
+			for(int j = 0; j < width; j++){
+				if( !(abs(zBuf[j][i] - maxZ) <= .0000001)  ){
+		            image.set_pixel(j,i, color[j][i][0] ,color[j][i][1],color[j][i][2]);
+				}
+			}
+		}
+		image.save_image(folder + "test.bmp");;
+	}
+
 	void compute(){
 		l = look.add(eye.multiply(-1));
 		l.normalize();
@@ -261,9 +277,96 @@ public:
 };
 
 
-int n = 0;
+class Triangle{
+public:
+	Vector p1, p2, p3;
+
+    void input(ifstream &inp){
+		p1.input(inp);
+		p2.input(inp);
+		p3.input(inp);
+	}
+
+	Triangle transform(Transform* t){
+		Triangle x = *this;
+		x.p1 = x.p1.transform(t);
+		x.p2 = x.p2.transform(t);
+		x.p3 = x.p3.transform(t);
+		return x;
+	}
+
+	void print(ofstream &stage){
+		p1.print(stage);
+		p2.print(stage);
+		p3.print(stage);
+	}
+
+	void performZBuffer(Glu &glu){
+		vector<int> color = {rand()%255, rand()%255, rand()%255};
+
+		double minX = min(p1.x, min(p2.x, p3.x ) );
+		double maxX = max(p1.x, max(p2.x, p3.x ) );
+		
+		double minY = min(p1.y, min(p2.y, p3.y ) );
+		double maxY = max(p1.y, max(p2.y, p3.y ) );
+
+		int n1 = round( (glu.maxY - glu.dy/2 - maxY)/glu.dy );
+		int n2 = round( (glu.maxY - glu.dy/2 - minY)/glu.dy );
+
+		vector< Vector > points = {p1, p2, p3};
+		sort(points.begin(), points.end(), [](const Vector& l, const Vector& r){
+			return l.y > r.y;
+		});
+		for(int yLine = n1; yLine <= n2; yLine++){
+			double ys = glu.maxY - glu.dy/2 - yLine*glu.dy;
+			int upCount = 0;
+			for(int i = 0; i < 3; i++){
+				if(points[i].y >= ys) upCount++;
+			}
+			Vector point1, point2, point3;
+			if(upCount == 1){
+				point1 = points[0];
+				point2 = points[1];
+				point3 = points[2];
+			}else if(upCount == 2){
+				point1 = points[2];
+				point2 = points[0];
+				point3 = points[1];				
+			}else{
+				continue;
+			}
+			if(  (ys - point1.y)*(point2.x - point1.x)/(point2.y - point1.y) >
+				(ys - point1.y)*(point3.x - point1.x)/(point3.y - point1.y) ){
+				swap(point2, point3);
+			}
+
+			double xa = point1.x + (ys - point1.y)*(point2.x - point1.x)/(point2.y - point1.y);
+			double xb = point1.x + (ys - point1.y)*(point3.x - point1.x)/(point3.y - point1.y);
+
+			double za = point1.z + (ys - point1.y)*(point2.z - point1.z)/(point2.y - point1.y);
+			double zb = point1.z + (ys - point1.y)*(point3.z - point1.z)/(point3.y - point1.y);
+
+			int xLine = round( (xa - glu.minX - glu.dx/2.0)/glu.dx );
+			int xLine2 = round( (xb - glu.minX - glu.dx/2.0)/glu.dx );
+
+			xLine = max(0, min(xLine, glu.width-1) );
+
+			double xs = glu.minX + xLine*glu.dx + glu.dx/2.0;
+			for( ; xLine <= xLine2; xs += glu.dx, xLine++){
+				double zs = za + (xs - xa)*(zb - za)/(xb - xa);
+				if(xLine >= 0 && xLine < glu.width && yLine >= 0 && yLine < glu.height && zs >= glu.minZ){
+					if(glu.zBuf[xLine][yLine] > zs){
+						glu.zBuf[xLine][yLine] = zs;
+						glu.color[xLine][yLine] = color;
+					}
+				}
+			}
+		}
+	}
+};
+
+
 Glu glu;
-string folder = "";
 
 void stage1(){
     ifstream scene;
@@ -338,6 +441,8 @@ void stage2(){
 		triangle.transform(&V).print(stage2);
 		stage2 << "\n";
 	}
+	stage1.close();
+	stage2.close();
 }
 
 void stage3(){
@@ -356,11 +461,34 @@ void stage3(){
 		triangle.transform(&P).print(stage3);
 		stage3 << "\n";
 	}	
+	stage2.close();
+	stage3.close();
+}
+
+void zBuffer(){
+    ifstream stage3;
+    ifstream config;
+	ofstream z_buffer;
+    stage3.open(folder + "stage3.txt");
+    config.open(folder + "config.txt");
+	z_buffer.open(folder + "z_buffer.txt");
+	z_buffer.precision(6);
+	z_buffer << fixed;
+	glu.inputConfig(config);
+
+	for(int i = 0; i < n; i++){
+		Triangle triangle;
+		triangle.input(stage3);
+		triangle.performZBuffer(glu);
+	}
+	glu.outputZBuffer(z_buffer);
 }
 
 int main(){
 	stage1();
 	stage2();
 	stage3();
+	zBuffer();
+	glu.toImage();
     return 0;
 }
