@@ -9,7 +9,7 @@ class Transform;
 
 class Vector{
 public:
-	double x, y, z;
+	double x, y, z, d;
 	Vector(){
 	}
 	Vector(double px, double py, double pz){
@@ -80,26 +80,6 @@ public:
     }
 };
 
-class Glu{
-public:
-    Vector eye, look, up;
-    double fovY, aspectRatio, near, far;
-	Vector l, r, u;
-
-    void input(ifstream &inp){
-        eye.input(inp);
-        look.input(inp);
-        up.input(inp);
-        inp >> fovY >> aspectRatio >> near >> far;
-    }
-
-	void compute(){
-		l = look.add(eye.multiply(-1));
-		l.normalize();
-		r = l.cross(up);
-		u = r.cross(l);
-	}
-};
 
 class Triangle{
 public:
@@ -241,8 +221,45 @@ Vector Vector::transform(Transform *t){
 	for(int i = 0; i < 4; i++){
 		a[i] = t->matrix[i][0] * x + t->matrix[i][1] * y + t->matrix[i][2] * z + + t->matrix[i][3]; 
 	}
-	return Vector(a[0], a[1], a[2]);
+	return Vector(a[0]/a[3], a[1]/a[3], a[2]/a[3]);
 }	
+
+
+class Glu{
+public:
+    Vector eye, look, up;
+    double fovY, aspectRatio, near, far;
+	Vector l, r, u;
+
+    void input(ifstream &inp){
+        eye.input(inp);
+        look.input(inp);
+        up.input(inp);
+        inp >> fovY >> aspectRatio >> near >> far;
+    }
+
+	Transform getProjectionTransformation(){
+		double fovX = fovY * aspectRatio;
+		double t = near * tan(pi*fovY/360.0);
+		double r_ = near * tan(pi*fovX/360.0);		
+		Transform P;
+		P.matrix[0][0] = near/r_;
+		P.matrix[1][1] = near/t;
+		P.matrix[2][2] = -(far + near)/(far - near),
+			P.matrix[2][3] = -(2*far*near)/(far-near);
+		P.matrix[3][2] = -1, P.matrix[3][3] = 0;
+
+		return P;
+	}
+
+	void compute(){
+		l = look.add(eye.multiply(-1));
+		l.normalize();
+		r = l.cross(up);
+		u = r.cross(l);
+	}
+};
+
 
 int n = 0;
 Glu glu;
@@ -323,8 +340,27 @@ void stage2(){
 	}
 }
 
+void stage3(){
+	ifstream stage2;
+	ofstream stage3;
+	stage2.open(folder + "stage2.txt");
+	stage3.open(folder + "stage3.txt");
+	stage3.precision(7);
+	stage3 << fixed;
+
+	Transform P = glu.getProjectionTransformation();
+
+	for(int i = 0; i < n; i++){
+		Triangle triangle;
+		triangle.input(stage2);
+		triangle.transform(&P).print(stage3);
+		stage3 << "\n";
+	}	
+}
+
 int main(){
 	stage1();
 	stage2();
+	stage3();
     return 0;
 }
