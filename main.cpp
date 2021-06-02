@@ -71,8 +71,8 @@ public:
         inp >> x >> y >> z;
     }
 
-	void print(){
-		cout << x << " " << y << " " << z << "\n";
+	void print(ofstream &stage){
+		stage << x << " " << y << " " << z << "\n";
 	}
 
     bool operator<(const Vector &a) const {
@@ -111,10 +111,10 @@ public:
 		return x;
 	}
 
-	void print(){
-		p1.print();
-		p2.print();
-		p3.print();
+	void print(ofstream &stage){
+		p1.print(stage);
+		p2.print(stage);
+		p3.print(stage);
 	}
 };
 
@@ -123,12 +123,20 @@ class Transform{
 public:
 	vector< vector<double> > matrix;
 
+	Transform(vector<vector<double>> mat){
+		matrix = mat;
+	}
+
 	Transform(){
 		matrix = vector<vector<double>>(4, vector<double>(4, 0));
 		matrix[3][3] = 1;
 	}
+	void makeIdentity(){
+		matrix[0][0] = matrix[1][1] = matrix[2][2] = 1;
+	}
 
 	void setTranslate(Vector t){
+		makeIdentity();
 		matrix[0][3] = t.x;
 		matrix[1][3] = t.y;
 		matrix[2][3] = t.z;
@@ -157,7 +165,7 @@ public:
 		return mat;
 	}
 
-	void multiMatrix(Transform t){
+	Transform multiMatrix(Transform t){
 		vector<vector<double>> m(4, vector<double>(4, 0));
 		for(int i = 0; i < 4; i++){
 			for(int j = 0; j < 4; j++){
@@ -166,7 +174,16 @@ public:
 				}
 			}
 		}
-		matrix = m;
+		// this->print();
+		// cout << "RRRRRRRRRR\n";
+		// t.print();
+		// for(int i = 0; i < 4; i++){
+		// 	for(int j = 0; j < 4; j++){
+		// 		cout << m[i][j] << " ";
+		// 	}
+		// 	cout << "----\n";
+		// }
+		return Transform(m);
 	}
 
 	void setRotate(double angle, Vector t){
@@ -191,6 +208,15 @@ public:
 		addMatrix( multiMatrix(m3, sin(angle) ) );
 	}
 
+	void print(){
+		for(int i = 0; i < 4; i++){
+			for(int j = 0; j < 4; j++){
+				cout << matrix[i][j] << " ";
+			}
+			cout << "\n";
+		}
+	}
+
 	void input(ifstream &inp, TRANSFORM tr){
 		if(tr == T_translate){
 			Vector t;
@@ -211,17 +237,26 @@ public:
 };
 
 Vector Vector::transform(Transform *t){
-	vector<double> a(3, 1);
-	for(int i = 0; i < 3; i++){
-		a[i] = t->matrix[i][0] * x + t->matrix[i][1] * y + t->matrix[i][2] * z; 
+	vector<double> a(4, 1);
+	for(int i = 0; i < 4; i++){
+		a[i] = t->matrix[i][0] * x + t->matrix[i][1] * y + t->matrix[i][2] * z + + t->matrix[i][3]; 
 	}
+	// cout << a[0] << " - " << a[1] << " - " << a[2] << "\n";
+	// cout << x << " - " << y << " - " << z << "\n";
 	return Vector(a[0], a[1], a[2]);
 }	
 
 
 int main(){
     ifstream scene;
-    scene.open ("scene.txt");
+	ofstream stage;
+	// cout.precision(7);
+	// cout << fixed;
+    scene.open("scene.txt");
+	stage.open("stage1.txt");
+	stage.precision(7);
+	stage << fixed;
+
 	Glu glu;
 
 	glu.input(scene);
@@ -231,22 +266,24 @@ int main(){
 
 	Triangle triangle;
 	Transform transform, current;
+	current.makeIdentity();
 
 	while(true){
 		scene >> command;
+		transform = Transform();
 		if(command == "triangle"){
 			triangle.input(scene);
-			triangle.transform(&current).print();
-			cout << "-----------------\n";
+			triangle.transform(&current).print(stage);
+			stage << "\n";
 		}else if(command == "translate"){
 			transform.input(scene, T_translate);
-			current.multiMatrix(transform);
+			current = current.multiMatrix(transform);
 		}else if(command == "scale"){
 			transform.input(scene, T_scale);
-			current.multiMatrix(transform);
+			current = current.multiMatrix(transform);
 		}else if(command == "rotate"){
 			transform.input(scene, T_rotate);
-			current.multiMatrix(transform);			
+			current = current.multiMatrix(transform);
 		}else if(command == "push"){
 			gluTrans.push(current);
 		}else if(command == "pop"){
@@ -257,6 +294,6 @@ int main(){
 		}else{
 			cout << "invalid command: " << command << "\n";
 		}
-	}	
+	}
     return 0;
 }
