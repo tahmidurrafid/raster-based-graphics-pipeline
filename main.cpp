@@ -58,7 +58,7 @@ public:
 		copyIt(m);
 	}
 
-    void unitify(){
+    void normalize(){
         double mul = sqrt(x*x + y*y + z*z );
         x = x/mul;
         y = y/mul;
@@ -84,6 +84,7 @@ class Glu{
 public:
     Vector eye, look, up;
     double fovY, aspectRatio, near, far;
+	Vector l, r, u;
 
     void input(ifstream &inp){
         eye.input(inp);
@@ -91,6 +92,13 @@ public:
         up.input(inp);
         inp >> fovY >> aspectRatio >> near >> far;
     }
+
+	void compute(){
+		l = look.add(eye.multiply(-1));
+		l.normalize();
+		r = l.cross(up);
+		u = r.cross(l);
+	}
 };
 
 class Triangle{
@@ -174,20 +182,12 @@ public:
 				}
 			}
 		}
-		// this->print();
-		// cout << "RRRRRRRRRR\n";
-		// t.print();
-		// for(int i = 0; i < 4; i++){
-		// 	for(int j = 0; j < 4; j++){
-		// 		cout << m[i][j] << " ";
-		// 	}
-		// 	cout << "----\n";
-		// }
+
 		return Transform(m);
 	}
 
 	void setRotate(double angle, Vector t){
-		t.unitify();
+		t.normalize();
 		vector<vector<double>> m1(4, vector<double>(4, 0));
 		vector<vector<double>> m2(4, vector<double>(4, 0));
 		vector<vector<double>> m3(4, vector<double>(4, 0));
@@ -241,25 +241,23 @@ Vector Vector::transform(Transform *t){
 	for(int i = 0; i < 4; i++){
 		a[i] = t->matrix[i][0] * x + t->matrix[i][1] * y + t->matrix[i][2] * z + + t->matrix[i][3]; 
 	}
-	// cout << a[0] << " - " << a[1] << " - " << a[2] << "\n";
-	// cout << x << " - " << y << " - " << z << "\n";
 	return Vector(a[0], a[1], a[2]);
 }	
 
+int n = 0;
+Glu glu;
+string folder = "";
 
-int main(){
+void stage1(){
     ifstream scene;
 	ofstream stage;
-	// cout.precision(7);
-	// cout << fixed;
-    scene.open("scene.txt");
-	stage.open("stage1.txt");
+    scene.open(folder + "scene.txt");
+	stage.open(folder + "stage1.txt");
 	stage.precision(7);
 	stage << fixed;
 
-	Glu glu;
-
 	glu.input(scene);
+	glu.compute();
 	string command;
 
 	stack<Transform> gluTrans;
@@ -274,6 +272,7 @@ int main(){
 		if(command == "triangle"){
 			triangle.input(scene);
 			triangle.transform(&current).print(stage);
+			n++;
 			stage << "\n";
 		}else if(command == "translate"){
 			transform.input(scene, T_translate);
@@ -295,5 +294,37 @@ int main(){
 			cout << "invalid command: " << command << "\n";
 		}
 	}
+	scene.close();
+	stage.close();
+}
+
+void stage2(){
+	ifstream stage1;
+	ofstream stage2;
+	stage1.open(folder + "stage1.txt");
+	stage2.open(folder + "stage2.txt");
+	stage2.precision(7);
+	stage2 << fixed;
+
+	Transform T, R, V;
+
+	T.setTranslate(glu.eye.multiply(-1));
+	R.matrix[0][0] = glu.r.x, R.matrix[0][1] = glu.r.y, R.matrix[0][2] = glu.r.z;
+	R.matrix[1][0] = glu.u.x, R.matrix[1][1] = glu.u.y, R.matrix[1][2] = glu.u.z;
+	R.matrix[2][0] = -glu.l.x, R.matrix[2][1] = -glu.l.y, R.matrix[2][2] = -glu.l.z;
+	
+	V = R.multiMatrix(T);
+
+	for(int i = 0; i < n; i++){
+		Triangle triangle;
+		triangle.input(stage1);
+		triangle.transform(&V).print(stage2);
+		stage2 << "\n";
+	}
+}
+
+int main(){
+	stage1();
+	stage2();
     return 0;
 }
