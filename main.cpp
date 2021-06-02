@@ -69,6 +69,19 @@ public:
         z = z/mul;
     }
 
+	Vector rodrigues(double angle, Vector a){
+		Vector res;
+		angle = pi*angle/180.0;
+		Vector p1 = this->multiply( cos(angle) ); 
+		Vector p2 = a.multiply( (1 - cos(angle)) * this->dotProduct(a) );
+		Vector p3 = a.cross(*this);
+		p3 = p3.multiply(sin(angle));
+		res = p1;
+		res = res.add(p2);
+		res = res.add(p3);
+		return res;
+	}
+
 	Vector transform(Transform *t);
 
     void input(ifstream &inp){
@@ -148,21 +161,21 @@ public:
 		vector<vector<double>> m1(4, vector<double>(4, 0));
 		vector<vector<double>> m2(4, vector<double>(4, 0));
 		vector<vector<double>> m3(4, vector<double>(4, 0));
-		angle = pi*angle/180.0;
+		vector<vector<double>> mat(4, vector<double>(4, 0));
 
-		m1[0][0] = m1[1][1] = m1[2][2] = 1;
-		
-		m2[0][0] = t.x*t.x , m2[0][1] = t.x*t.y, m2[0][2] = t.x*t.z;
-		m2[1][0] = t.x*t.y , m2[1][1] = t.y*t.y, m2[1][2] = t.y*t.z;
-		m2[2][0] = t.x*t.z , m2[2][1] = t.y*t.z, m2[2][2] = t.z*t.z;
+		vector<Vector> rodrig(3);
 
-		m3[0][0] = 0 , m3[0][1] = -t.z, m3[0][2] = t.y;
-		m3[1][0] = t.z , m3[1][1] = 0, m3[1][2] = -t.x;
-		m3[2][0] = -t.y , m3[2][1] = t.x, m3[2][2] = 0;
+		rodrig[0] = Vector(1, 0, 0).rodrigues(angle, t);
+		rodrig[1] = Vector(0, 1, 0).rodrigues(angle, t);
+		rodrig[2] = Vector(0, 0, 1).rodrigues(angle, t);
 
-		addMatrix( multiMatrix(m1, cos(angle) ) );
-		addMatrix( multiMatrix(m2, 1 - cos(angle) ) );
-		addMatrix( multiMatrix(m3, sin(angle) ) );
+		for(int i = 0; i < 3; i++){
+			mat[0][i] = rodrig[i].x;
+			mat[1][i] = rodrig[i].y;
+			mat[2][i] = rodrig[i].z;
+		}
+		mat[3][3] = 1;
+		matrix = mat;
 	}
 
 	void print(){
@@ -317,7 +330,7 @@ public:
 		sort(points.begin(), points.end(), [](const Vector& l, const Vector& r){
 			return l.y > r.y;
 		});
-		for(int yLine = n1; yLine <= n2; yLine++){
+		for(int yLine = n1; yLine <= n2 && yLine >= 0 && yLine < glu.height; yLine++){
 			double ys = glu.maxY - glu.dy/2 - yLine*glu.dy;
 			int upCount = 0;
 			for(int i = 0; i < 3; i++){
@@ -349,11 +362,14 @@ public:
 			int xLine = round( (xa - glu.minX - glu.dx/2.0)/glu.dx );
 			int xLine2 = round( (xb - glu.minX - glu.dx/2.0)/glu.dx );
 
-			xLine = max(0, min(xLine, glu.width-1) );
+			// xLine = max(0, min(xLine, (int)(glu.width) ) );
+			// xLine2 = max(0, min(xLine2, (int)(glu.width ) ) );
 
 			double xs = glu.minX + xLine*glu.dx + glu.dx/2.0;
-			for( ; xLine <= xLine2; xs += glu.dx, xLine++){
-				double zs = za + (xs - xa)*(zb - za)/(xb - xa);
+			double zs = za + (xs - xa)*(zb - za)/(xb - xa);			
+
+			for( ; xLine <= xLine2 && xLine >= 0 && xLine < glu.width; xs += glu.dx, xLine++){
+
 				if(xLine >= 0 && xLine < glu.width && yLine >= 0 && yLine < glu.height && zs >= glu.minZ){
 					if(glu.zBuf[xLine][yLine] > zs){
 						glu.zBuf[xLine][yLine] = zs;
