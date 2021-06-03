@@ -362,15 +362,12 @@ public:
 			int xLine = round( (xa - glu.minX - glu.dx/2.0)/glu.dx );
 			int xLine2 = round( (xb - glu.minX - glu.dx/2.0)/glu.dx );
 
-			// xLine = max(0, min(xLine, (int)(glu.width) ) );
-			// xLine2 = max(0, min(xLine2, (int)(glu.width ) ) );
-
 			double xs = glu.minX + xLine*glu.dx + glu.dx/2.0;
 			double zs = za + (xs - xa)*(zb - za)/(xb - xa);			
 
 			for( ; xLine <= xLine2 && xLine >= 0 && xLine < glu.width; xs += glu.dx, xLine++){
 
-				if(xLine >= 0 && xLine < glu.width && yLine >= 0 && yLine < glu.height && zs >= glu.minZ){
+				if(xLine >= 0 && xLine < glu.width && yLine >= 0 && yLine < glu.height && zs > glu.minZ){
 					if(glu.zBuf[xLine][yLine] > zs){
 						glu.zBuf[xLine][yLine] = zs;
 						glu.color[xLine][yLine] = color;
